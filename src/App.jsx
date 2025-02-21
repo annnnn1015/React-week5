@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { useForm } from "react-hook-form";
+import ReactLoading  from "react-loading";
 import axios from "axios";
 import { Modal } from "bootstrap";
 
@@ -11,6 +13,13 @@ function App() {
 
   // 取得購物車列表
   const [cart, setCart] =useState({});
+
+  // 全螢幕loading(預設關閉)
+  const [isScreenLoading, setIsScreenLoading] = useState(false);
+
+  // 單獨loading(預設關閉)
+  const [isLoading, setIsLoading] = useState(false);
+  
     const getCart = async() =>{
       try{
         const res= await axios.get(`${BASE_URL}/v2/api/${API_PATH}/cart`);
@@ -23,11 +32,14 @@ function App() {
 
   useEffect(() => {
     const getProducts = async () => {
+      setIsScreenLoading(true);
       try {
         const res = await axios.get(`${BASE_URL}/v2/api/${API_PATH}/products`);
         setProducts(res.data.products);
       } catch (error) {
         alert("取得產品失敗");
+      } finally{
+        setIsScreenLoading(false);
       }
     };
     getProducts();
@@ -59,6 +71,7 @@ function App() {
   // 加入產品購物車
     // #1串產品購物車API（把選擇的產品回傳）
   const addCartItem = async(product_id,qty)=>{
+    setIsLoading(true);
     try{
       await axios.post(`${BASE_URL}/v2/api/${API_PATH}/cart`,{
         data: {
@@ -72,12 +85,15 @@ function App() {
     }
     catch(err){
       alert('加入購物車失敗')
+    }finally{
+      setIsLoading(false);
     }
   }
-
-  const removeCartItem = async()=>{
+  // 清空購物車
+  const removeCart = async()=>{
+    setIsScreenLoading(true);
     try{
-      await axios.delete(`${BASE_URL}/v2/api/${API_PATH}/carts`)
+      await axios.delete(`${BASE_URL}/v2/api/${API_PATH}/carts/`)
 
       // 每次按加入後重新取得購物車列表
       getCart();
@@ -85,7 +101,87 @@ function App() {
     catch(err){
       alert('清空購物車失敗')
     }
+    finally{
+      setIsScreenLoading(false);
+    }
   }
+
+  // 移除購物車單一項目
+  const removeCartItem = async(cartItem_id)=>{
+    setIsScreenLoading(true);
+    try{
+      await axios.delete(`${BASE_URL}/v2/api/${API_PATH}/cart/${cartItem_id}`)
+
+      // 每次按加入後重新取得購物車列表
+      getCart();
+    }
+    catch(err){
+      alert('清空購物車失敗')
+    }
+    finally{
+      setIsScreenLoading(false);
+    }
+  }
+
+  // 更新購物車數量
+  const updateCartItem = async (cartItem_id,product_id,qty)=>{
+    setIsScreenLoading(true);
+    try{
+      await axios.put(`${BASE_URL}/v2/api/${API_PATH}/cart/${cartItem_id}`,{
+        data: {
+          product_id,
+          qty: Number(qty)
+        }
+      })
+
+      getCart();
+    }
+    catch{
+      alert(`更新購物車數量失敗`)
+    }
+    finally{
+      setIsScreenLoading(false);
+    }
+  }
+
+  // 結帳表單
+    // 從 useForm 取出需要的函式、狀態（register、handleSubmit、errors）
+    // reset可以在送出表單後清空
+    const { register,
+      handleSubmit,
+      formState:{ errors},
+      reset
+    } = useForm();
+    // 送出表單
+    const onSubmit= handleSubmit((data)=>{
+        console.log(data);
+        // 把message解構出來，其餘包成一個user物件
+        const {message , ...user } = data;
+
+        const userInfo = {
+          data:{
+            user,
+            message}
+        }
+        // 將表單資料傳進結帳功能checkout
+        checkout(userInfo);
+    })
+
+    // API
+    const checkout = async (data)=>{
+      setIsScreenLoading(true);
+      try{
+        await axios.post(`${BASE_URL}/v2/api/${API_PATH}/order`,data)
+        reset()
+      }
+      catch(err){
+        alert('結帳失敗')
+      }
+      finally{
+        setIsScreenLoading(false);
+      }
+    }
+  
 
   return (
     <div className="container">
@@ -123,8 +219,16 @@ function App() {
                     >
                       查看更多
                     </button>
-                    <button onClick={()=>{addCartItem(product.id, 1)}} type="button" className="btn btn-outline-danger">
+                    <button onClick={()=>{addCartItem(product.id, 1)}} type="button" className="btn btn-outline-danger"
+                      disabled={isLoading}>
                       加到購物車
+                      {isLoading && (
+                        <ReactLoading
+                        type={"spin"}
+                        color={"#000"}
+                        height={"1.5rem"}
+                        width={"1.5rem"}
+                      />)}
                     </button>
                   </div>
                 </td>
@@ -183,8 +287,17 @@ function App() {
                 </div>
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-primary" onClick={()=>{addCartItem(tempProduct.id,qtySelect)}}>
+                <button type="button" className="btn btn-primary d-flex align-items-center gap-2" 
+                onClick={()=>{addCartItem(tempProduct.id,qtySelect)}}
+                disabled={isLoading}>
                   加入購物車
+                  {isLoading && (
+                    <ReactLoading
+                    type={"spin"}
+                    color={"#000"}
+                    height={"1.5rem"}
+                    width={"1.5rem"}
+                  />)}
                 </button>
               </div>
             </div>
@@ -192,7 +305,7 @@ function App() {
         </div>
 
         <div className="text-end py-3">
-          <button onClick={removeCartItem} className="btn btn-outline-danger" type="button">
+          <button onClick={removeCart} className="btn btn-outline-danger" type="button">
             清空購物車
           </button>
         </div>
@@ -212,7 +325,7 @@ function App() {
               return(
               <tr key={cartItem.id}>
                 <td>
-                  <button type="button" className="btn btn-outline-danger btn-sm">
+                  <button onClick={()=>removeCartItem(cartItem.id)} type="button" className="btn btn-outline-danger btn-sm">
                     x
                   </button>
                 </td>
@@ -223,6 +336,9 @@ function App() {
                       <button
                         type="button"
                         className="btn btn-outline-dark btn-sm"
+                        onClick={()=>updateCartItem(cartItem.id,cartItem.product_id, cartItem.qty-1)}
+                        // 當數量1時不能按
+                        disabled={cartItem.qty === 1}
                       >
                         -
                       </button>
@@ -233,6 +349,7 @@ function App() {
                       <button
                         type="button"
                         className="btn btn-outline-dark btn-sm"
+                        onClick={()=>updateCartItem(cartItem.id,cartItem.product_id, cartItem.qty+1)}
                       >
                         +
                       </button>
@@ -260,32 +377,47 @@ function App() {
       </div>
 
       <div className="my-5 row justify-content-center">
-        <form className="col-md-6">
+        <form onSubmit={onSubmit} className="col-md-6">
           <div className="mb-3">
             <label htmlFor="email" className="form-label">
               Email
             </label>
             <input
+              {...register('email',{
+                required: 'Email 欄位必填',
+                pattern:{
+                  value:/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
+                  message: 'Email 格式錯誤'
+                }
+              })}
               id="email"
               type="email"
-              className="form-control"
+              className={`form-control ${errors.email && 'is-invalid'}`}
               placeholder="請輸入 Email"
             />
 
-            <p className="text-danger my-2"></p>
-          </div>
+            {errors.email && <p className="text-danger my-2">
+              {errors.email.message}
+            </p>}
+            </div>
 
           <div className="mb-3">
             <label htmlFor="name" className="form-label">
               收件人姓名
             </label>
             <input
+            {...register('name',{
+              required: '姓名欄位必填',
+            })}
               id="name"
-              className="form-control"
+              className={`form-control ${errors.name && 'is-invalid'}`}
               placeholder="請輸入姓名"
             />
 
-            <p className="text-danger my-2"></p>
+          {errors.name && <p className="text-danger my-2">
+            {errors.name.message}
+          </p>}
+
           </div>
 
           <div className="mb-3">
@@ -293,13 +425,22 @@ function App() {
               收件人電話
             </label>
             <input
+            {...register('tel',{
+              required: '電話欄位必填',
+              pattern:{
+                value: /^(0[2-8]\d{7}|09\d{8})$/,
+                message: '電話格式錯誤'
+              }
+            })}
               id="tel"
               type="text"
-              className="form-control"
+              className={`form-control ${errors.tel && 'is-invalid'}`}
               placeholder="請輸入電話"
             />
 
-            <p className="text-danger my-2"></p>
+          {errors.tel && <p className="text-danger my-2">
+            {errors.tel.message}
+          </p>}
           </div>
 
           <div className="mb-3">
@@ -307,13 +448,18 @@ function App() {
               收件人地址
             </label>
             <input
+            {...register('address',{
+              required: '地址欄位必填',
+            })}
               id="address"
               type="text"
-              className="form-control"
+              className={`form-control ${errors.address && 'is-invalid'}`}
               placeholder="請輸入地址"
             />
 
-            <p className="text-danger my-2"></p>
+            {errors.address && <p className="text-danger my-2">
+            {errors.address.message}
+          </p>}
           </div>
 
           <div className="mb-3">
@@ -321,6 +467,7 @@ function App() {
               留言
             </label>
             <textarea
+            {...register('message')}
               id="message"
               className="form-control"
               cols="30"
@@ -334,7 +481,23 @@ function App() {
           </div>
         </form>
       </div>
+
+      {/* Loading */}
+      {isScreenLoading && (
+        <div
+          className="d-flex justify-content-center align-items-center"
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(255,255,255,0.3)",
+            zIndex: 999,
+          }}
+          >
+            <ReactLoading type="spin" color="black" width="4rem" height="4rem" />
+        </div>)}
     </div>
+
+    
   );
 }
 
