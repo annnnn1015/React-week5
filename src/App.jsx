@@ -9,6 +9,18 @@ function App() {
   const [products, setProducts] = useState([]);
   const [tempProduct, setTempProduct] = useState([]);
 
+  // 取得購物車列表
+  const [cart, setCart] =useState({});
+    const getCart = async() =>{
+      try{
+        const res= await axios.get(`${BASE_URL}/v2/api/${API_PATH}/cart`);
+        setCart(res.data.data);
+      }
+      catch(err){
+        alert('購物車列表取得失敗');
+      }
+    }
+
   useEffect(() => {
     const getProducts = async () => {
       try {
@@ -19,6 +31,7 @@ function App() {
       }
     };
     getProducts();
+    getCart();
   }, []);
 
   const productModalRef = useRef(null);
@@ -47,15 +60,30 @@ function App() {
     // #1串產品購物車API（把選擇的產品回傳）
   const addCartItem = async(product_id,qty)=>{
     try{
-      axios.post(`${BASE_URL}/v2/api/${API_PATH}/cart`,{
+      await axios.post(`${BASE_URL}/v2/api/${API_PATH}/cart`,{
         data: {
           product_id,
           qty: Number(qty)
         }
       })
+
+      // 每次按加入後重新取得購物車列表
+      getCart();
     }
     catch(err){
       alert('加入購物車失敗')
+    }
+  }
+
+  const removeCartItem = async()=>{
+    try{
+      await axios.delete(`${BASE_URL}/v2/api/${API_PATH}/carts`)
+
+      // 每次按加入後重新取得購物車列表
+      getCart();
+    }
+    catch(err){
+      alert('清空購物車失敗')
     }
   }
 
@@ -164,7 +192,7 @@ function App() {
         </div>
 
         <div className="text-end py-3">
-          <button className="btn btn-outline-danger" type="button">
+          <button onClick={removeCartItem} className="btn btn-outline-danger" type="button">
             清空購物車
           </button>
         </div>
@@ -180,47 +208,52 @@ function App() {
           </thead>
 
           <tbody>
-            <tr>
-              <td>
-                <button type="button" className="btn btn-outline-danger btn-sm">
-                  x
-                </button>
-              </td>
-              <td></td>
-              <td style={{ width: "150px" }}>
-                <div className="d-flex align-items-center">
-                  <div className="btn-group me-2" role="group">
-                    <button
-                      type="button"
-                      className="btn btn-outline-dark btn-sm"
-                    >
-                      -
-                    </button>
-                    <span
-                      className="btn border border-dark"
-                      style={{ width: "50px", cursor: "auto" }}
-                    ></span>
-                    <button
-                      type="button"
-                      className="btn btn-outline-dark btn-sm"
-                    >
-                      +
-                    </button>
+            {cart.carts?.map((cartItem)=>{
+              return(
+              <tr key={cartItem.id}>
+                <td>
+                  <button type="button" className="btn btn-outline-danger btn-sm">
+                    x
+                  </button>
+                </td>
+                <td>{cartItem.product.title}</td>
+                <td style={{ width: "150px" }}>
+                  <div className="d-flex align-items-center">
+                    <div className="btn-group me-2" role="group">
+                      <button
+                        type="button"
+                        className="btn btn-outline-dark btn-sm"
+                      >
+                        -
+                      </button>
+                      <span
+                        className="btn border border-dark"
+                        style={{ width: "50px", cursor: "auto" }}
+                      >{cartItem.qty}</span>
+                      <button
+                        type="button"
+                        className="btn btn-outline-dark btn-sm"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <span className="input-group-text bg-transparent border-0">
+                      {cartItem.product.unit}
+                    </span>
                   </div>
-                  <span className="input-group-text bg-transparent border-0">
-                    unit
-                  </span>
-                </div>
-              </td>
-              <td className="text-end">單項總價</td>
-            </tr>
+                </td>
+                <td className="text-end">{cartItem.total}</td>
+              </tr>
+              )
+            })}
+            
           </tbody>
           <tfoot>
             <tr>
               <td colSpan="3" className="text-end">
                 總計：
               </td>
-              <td className="text-end" style={{ width: "130px" }}></td>
+              <td className="text-end" style={{ width: "130px" }}>{cart.total}</td>
             </tr>
           </tfoot>
         </table>
